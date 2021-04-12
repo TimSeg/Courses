@@ -1,0 +1,75 @@
+<?php
+
+//add this following code in theme editor / "theme functions" file on WordPress (don't forget to create a child theme)
+
+
+
+$slices = json_decode(file_get_contents("your Json feed url"),true);
+
+if ($slices) {
+
+
+    foreach ($slices as $slice) {
+        $title = $slice["title"];
+        $content = $slice["content"];
+   // insert more logic here
+        $image_url = $slice["image_url"];
+
+
+        if (0 === post_exists($title)) {
+
+            // Create the page
+            $post_id = wp_insert_post(
+                array(
+                    'post_title' => $title,
+                    'post_content' => $content,
+                    'post_author' => 1,
+                    'comment_status' => 'closed',
+                    'post_status' => 'publish',
+                    'post_type' => 'post'
+
+                )
+            );
+
+
+//OPTIONNAL - create a thumbail for the article (if you don't have image on the json feed, post is still created with empty thumbail)
+
+            $upload_dir = wp_upload_dir();
+
+            $image_data = file_get_contents( $image_url );
+
+            $filename = basename( $image_url );
+
+
+            if ( wp_mkdir_p( $upload_dir['path'] ) ) {
+                $thumbnail = $upload_dir['path'] . '/' . $filename;
+            }
+            else {
+                $thumbnail = $upload_dir['basedir'] . '/' . $filename;
+            }
+
+            file_put_contents( $thumbnail, $image_data );
+
+            $wp_filetype = wp_check_filetype( $filename, null );
+
+            $attachment = array(
+                'post_mime_type' => $wp_filetype['type'],
+                'post_title' => sanitize_file_name( $filename ),
+                'post_content' => '',
+                'post_status' => 'inherit',
+
+            );
+
+            $attach_id = wp_insert_attachment( $attachment, $thumbnail );
+            require_once( ABSPATH . 'wp-admin/includes/image.php' );
+            $attach_data = wp_generate_attachment_metadata( $attach_id, $thumbnail );
+            wp_update_attachment_metadata( $attach_id, $attach_data );
+
+
+            // add featured image to post
+            add_post_meta($post_id, '_thumbnail_id', $attach_id);
+        }
+        
+// end if
+    }
+}
